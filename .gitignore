@@ -4,3 +4,4 @@ Temp
 *.suo
 *.csproj
 Logs/
+obj/

@@ -74,7 +74,7 @@ public class AtmosphericScattering : MonoBehaviour
     [ColorUsage(false, true, 0, 10, 0, 10)]
     private Color[] _ambientLightLUT;
 
-    private Material _material;
+    public static Material _material;
     private Material _lightShaftMaterial;
     private Camera _camera;
 
@@ -176,6 +176,11 @@ public class AtmosphericScattering : MonoBehaviour
 
         if (ReflectionProbe)
             InitializeReflectionProbe();
+    }
+
+    private void OnEnable()
+    {
+        RenderPipelineManager.beginCameraRendering += OnCameraRendering;
     }
 
     /// <summary>
@@ -731,17 +736,20 @@ public class AtmosphericScattering : MonoBehaviour
     /// <summary>
     /// 
     /// </summary>
-    public void OnPreRender()
+    public void OnCameraRendering(ScriptableRenderContext ctx, Camera camera)
     {
+        if (!Application.isPlaying)
+            return;
+        
         // get four corners of camera frustom in world space
         // bottom left
-        _FrustumCorners[0] = _camera.ViewportToWorldPoint(new Vector3(0, 0, _camera.farClipPlane));        
+        _FrustumCorners[0] = camera.ViewportToWorldPoint(new Vector3(0, 0, camera.farClipPlane));        
         // top left
-        _FrustumCorners[1] = _camera.ViewportToWorldPoint(new Vector3(0, 1, _camera.farClipPlane));
+        _FrustumCorners[1] = camera.ViewportToWorldPoint(new Vector3(0, 1, camera.farClipPlane));
         // top right
-        _FrustumCorners[2] = _camera.ViewportToWorldPoint(new Vector3(1, 1, _camera.farClipPlane));
+        _FrustumCorners[2] = camera.ViewportToWorldPoint(new Vector3(1, 1, camera.farClipPlane));
         // bottom right
-        _FrustumCorners[3] = _camera.ViewportToWorldPoint(new Vector3(1, 0, _camera.farClipPlane));
+        _FrustumCorners[3] = camera.ViewportToWorldPoint(new Vector3(1, 0, camera.farClipPlane));
 
         // update parameters
         UpdateSkyBoxParameters();

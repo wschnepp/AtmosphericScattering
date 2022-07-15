@@ -209,11 +209,109 @@ Shader "Hidden/AtmosphericScattering"
 		}
 
 			
-		// pass 3 - atmocpheric fog
+		// pass 3 - atmocpheric fog extinction
 		Pass
 		{
 			ZTest Always Cull Off ZWrite Off
-			Blend One Zero
+			BlendOp Add
+			Blend DstColor Zero
+
+			CGPROGRAM
+
+#pragma vertex vertDir
+#pragma fragment fragDir
+#pragma target 4.0
+
+#define UNITY_HDR_ON
+
+#pragma shader_feature ATMOSPHERE_REFERENCE
+#pragma shader_feature LIGHT_SHAFTS
+
+			sampler2D _Background;			
+
+			struct VSInput
+			{
+				float4 vertex : POSITION;
+				float2 uv : TEXCOORD0;
+				uint vertexId : SV_VertexID;
+			};
+
+			struct PSInput
+			{
+				float4 pos : SV_POSITION;
+				float2 uv : TEXCOORD0;
+				float3 wpos : TEXCOORD1;
+			};
+
+			PSInput vertDir(VSInput i)
+			{
+				PSInput o;
+
+				o.pos = UnityObjectToClipPos(i.vertex);
+				o.uv = i.uv;
+				o.wpos = _FrustumCorners[i.vertexId];
+
+				return o;
+			}
+
+			float4 fragDir(v2f i) : COLOR0
+			{
+				float2 uv = i.uv.xy;
+				float depth = SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, uv);
+				float linearDepth = Linear01Depth(depth);
+
+				float3 wpos = i.wpos;
+				float3 rayStart = _WorldSpaceCameraPos;
+				float3 rayDir = wpos - _WorldSpaceCameraPos;
+				rayDir *= linearDepth;
+
+				float rayLength = length(rayDir);
+				rayDir /= rayLength;
+					
+				float3 planetCenter = _WorldSpaceCameraPos;
+				planetCenter = float3(0, -_PlanetRadius, 0);
+				float2 intersection = RaySphereIntersection(rayStart, rayDir, planetCenter, _PlanetRadius + _AtmosphereHeight);
+				if (linearDepth > 0.99999)
+				{
+					rayLength = 1e20;
+				}
+				rayLength = min(intersection.y, rayLength);
+
+				intersection = RaySphereIntersection(rayStart, rayDir, planetCenter, _PlanetRadius);
+				if (intersection.x > 0)
+					rayLength = min(rayLength, intersection.x);
+
+				float4 extinction;
+				_SunIntensity = 0;
+				IntegrateInscattering(rayStart, rayDir, rayLength, planetCenter, _DistanceScale, _LightDir, 16, extinction);
+					
+#ifndef ATMOSPHERE_REFERENCE
+				extinction.xyz = tex3D(_ExtinctionLUT, float3(uv.x, uv.y, linearDepth));
+#endif				
+				
+				if (linearDepth > 0.99999)
+				{
+#ifdef LIGHT_SHAFTS
+					float shadow = tex2D(_LightShaft1, uv.xy).x;
+					shadow = (pow(shadow, 4) + shadow) / 2;
+					shadow = max(0.1, shadow);
+					extinction *= shadow;
+#else
+					extinction = 1;					
+#endif
+				}
+					
+				float4 c = extinction;//background * extinction + inscattering;
+				return c;
+			}
+			ENDCG
+		}
+		
+		// pass 4 - atmocpheric fog inscattering
+		Pass
+		{
+			ZTest Always Cull Off ZWrite Off
+			Blend One One
 
 			CGPROGRAM
 
@@ -295,18 +393,13 @@ Shader "Hidden/AtmosphericScattering"
 
 				inscattering *= shadow;
 #endif
-				float4 background = tex2D(_Background, uv);
 
 				if (linearDepth > 0.99999)
 				{
-#ifdef LIGHT_SHAFTS
-					background *= shadow;
-#endif
 					inscattering = 0;
-					extinction = 1;
 				}
 					
-				float4 c = background * extinction + inscattering;
+				float4 c = inscattering;
 				return c;
 			}
 			ENDCG
