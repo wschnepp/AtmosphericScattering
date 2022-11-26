@@ -18,8 +18,9 @@ public class AtmosphericScatteringFeature : ScriptableRendererFeature
     public AtmosphericScatteringFeatureSettings settings = new AtmosphericScatteringFeatureSettings();
 
     RenderTargetHandle renderTextureHandle;
-    AtmosphericScatteringPass scatteringPass;
-
+    private LightShaftsPass lightShaftsPass;
+    private AtmosphericScatteringPass scatteringPass;
+    
     public override void Create()
     {
         /*settings.MaterialToBlit = null;
@@ -27,13 +28,17 @@ public class AtmosphericScatteringFeature : ScriptableRendererFeature
         settings.WhenToInsert = RenderPassEvent.AfterRendering;
         settings.RenderAtmosphericFog = false;
         */
+        lightShaftsPass = new LightShaftsPass();
+        lightShaftsPass.renderPassEvent = RenderPassEvent.AfterRenderingShadows;
         
         scatteringPass = new AtmosphericScatteringPass(settings);
+        scatteringPass.renderPassEvent = settings.WhenToInsert;
     }
   
     // called every frame once per camera
     public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
     {
+        
         if (!settings.IsEnabled)
         {
             // we can do nothing this frame if we want
@@ -49,6 +54,8 @@ public class AtmosphericScatteringFeature : ScriptableRendererFeature
 
         // Ask the renderer to add our pass.
         // Could queue up multiple passes and/or pick passes to use
+        
+        renderer.EnqueuePass(lightShaftsPass);
         renderer.EnqueuePass(scatteringPass);
     }
 }

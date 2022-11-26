@@ -75,7 +75,7 @@ public class AtmosphericScattering : MonoBehaviour
     private Color[] _ambientLightLUT;
 
     public static Material _material;
-    private Material _lightShaftMaterial;
+    public static  Material _lightShaftMaterial;
     private Camera _camera;
 
     private Color _sunColor;
